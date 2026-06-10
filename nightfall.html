@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIGHTFALL — Kalgash</title>
+<style>
+  :root{ --amber:#ffb35c; --red:#ff5c3c; }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ width:100%; height:100%; overflow:hidden; background:#000; font-family:'Georgia', serif; }
+  #app{ position:fixed; inset:0; }
+  canvas{ display:block; }
+
+  /* ---------- HUD ---------- */
+  #hud{ position:fixed; inset:0; pointer-events:none; color:#e8dcc8; text-shadow:0 1px 3px rgba(0,0,0,.8); opacity:0; transition:opacity 1s; }
+  #hud.on{ opacity:1; }
+
+  #sunRow{ position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; gap:10px; align-items:center; background:rgba(10,8,6,.42); border:1px solid rgba(255,200,140,.18); border-radius:24px; padding:7px 16px; backdrop-filter:blur(4px); }
+  .sundot{ width:14px; height:14px; border-radius:50%; transition:all .8s; box-shadow:0 0 8px 1px currentColor; }
+  .sundot.down{ opacity:.14; box-shadow:none; transform:scale(.7); }
+  #phaseLabel{ font-size:13px; letter-spacing:2.5px; text-transform:uppercase; margin-left:8px; color:#d8c8a8; font-family:'Trebuchet MS',sans-serif; }
+
+  #leftPanel{ position:absolute; left:18px; bottom:18px; width:230px; font-family:'Trebuchet MS',sans-serif; }
+  .barlabel{ font-size:11px; letter-spacing:2px; text-transform:uppercase; margin-bottom:3px; color:#cdbfa6; display:flex; justify-content:space-between; }
+  .barwrap{ height:9px; background:rgba(0,0,0,.55); border:1px solid rgba(255,210,150,.22); border-radius:5px; overflow:hidden; margin-bottom:9px; }
+  .barfill{ height:100%; border-radius:4px; transition:width .25s, background-color .5s; }
+  #sanityFill{ width:100%; background:#9fd49a; }
+  #lightFill{ width:100%; background:linear-gradient(90deg,#5a4a2a,#ffd27a); }
+  #woodCount{ font-size:14px; color:#e8d8b8; margin-top:2px; }
+  #woodCount b{ color:var(--amber); font-size:17px; }
+
+  #compass{ position:absolute; top:64px; left:50%; transform:translateX(-50%); font-family:'Trebuchet MS',sans-serif; font-size:11px; letter-spacing:1.5px; color:#cdbfa6; opacity:.85; }
+  #compass .arrow{ display:inline-block; transition:transform .2s; font-size:14px; }
+
+  #msgLog{ position:absolute; bottom:120px; left:50%; transform:translateX(-50%); text-align:center; width:640px; max-width:90vw; }
+  .msg{ font-size:17px; font-style:italic; color:#f0e2c4; margin:4px 0; opacity:0; animation:msgfade 5.5s forwards; }
+  @keyframes msgfade{ 0%{opacity:0; transform:translateY(8px);} 8%{opacity:1; transform:none;} 80%{opacity:1;} 100%{opacity:0;} }
+
+  #hint{ position:absolute; bottom:18px; left:50%; transform:translateX(-50%); font-family:'Trebuchet MS',sans-serif; font-size:11.5px; letter-spacing:1px; color:rgba(220,205,175,.6); }
+  #interactTip{ position:absolute; top:58%; left:50%; transform:translateX(-50%); font-family:'Trebuchet MS',sans-serif; font-size:14px; color:#ffe0a8; background:rgba(15,10,5,.55); padding:6px 14px; border-radius:6px; border:1px solid rgba(255,200,140,.25); display:none; }
+
+  #crosshair{ position:absolute; top:50%; left:50%; width:4px; height:4px; margin:-2px; border-radius:50%; background:rgba(255,240,210,.65); box-shadow:0 0 4px rgba(0,0,0,.8); }
+
+  /* ---------- vignette / madness overlays ---------- */
+  #vignette{ position:fixed; inset:0; pointer-events:none; background:radial-gradient(ellipse at center, transparent 42%, rgba(8,2,14,.92) 100%); opacity:0; }
+  #redPulse{ position:fixed; inset:0; pointer-events:none; background:radial-gradient(ellipse at center, transparent 55%, rgba(120,0,20,.55) 100%); opacity:0; }
+
+  /* ---------- overlays ---------- */
+  .overlay{ position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; background:radial-gradient(ellipse at 50% 38%, #1a1410 0%, #060403 70%); z-index:30; transition:opacity 1.4s; padding:24px; }
+  .overlay.hidden{ opacity:0; pointer-events:none; }
+  .overlay h1{ font-size:54px; letter-spacing:14px; font-weight:normal; color:#f3e6c8; text-shadow:0 0 24px rgba(255,170,80,.35); margin-bottom:6px; }
+  .overlay h2{ font-size:13px; letter-spacing:6px; color:#b89a6a; font-family:'Trebuchet MS',sans-serif; text-transform:uppercase; margin-bottom:30px; }
+  .overlay .lore{ max-width:620px; font-size:15.5px; line-height:1.75; color:#cfc0a4; font-style:italic; margin-bottom:14px; }
+  .overlay .controls{ font-family:'Trebuchet MS',sans-serif; font-size:12px; letter-spacing:1px; color:#8d7d62; margin:22px 0 26px; line-height:2; }
+  .overlay button{ pointer-events:auto; cursor:pointer; font-family:'Trebuchet MS',sans-serif; font-size:15px; letter-spacing:4px; text-transform:uppercase; color:#1a120a; background:linear-gradient(180deg,#ffd690,#d99a4e); border:none; border-radius:4px; padding:14px 46px; box-shadow:0 0 30px rgba(255,180,90,.35); transition:transform .15s, box-shadow .3s; }
+  .overlay button:hover{ transform:scale(1.05); box-shadow:0 0 44px rgba(255,190,100,.6); }
+  #madness{ background:radial-gradient(ellipse at 50% 40%, #2a0610 0%, #050208 75%); }
+  #madness h1{ color:#ff8d7a; text-shadow:0 0 30px rgba(255,60,40,.5); }
+  #dawnOverlay{ background:radial-gradient(ellipse at 50% 45%, #3a2a14 0%, #0a0704 78%); }
+  #loadnote{ font-family:'Trebuchet MS',sans-serif; font-size:11px; color:#6a5d48; margin-top:18px; letter-spacing:2px; }
+  .stat{ font-family:'Trebuchet MS',sans-serif; font-size:13px; color:#bda87f; letter-spacing:1px; margin:3px 0; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <div id="sunRow"></div>
+  <div id="compass"><span class="arrow" id="obsArrow">▲</span> OBSERVATORY <span id="obsDist"></span></div>
+  <div id="leftPanel">
+    <div class="barlabel"><span>Sanity</span><span id="sanityPct">100</span></div>
+    <div class="barwrap"><div class="barfill" id="sanityFill"></div></div>
+    <div class="barlabel"><span>Light upon you</span></div>
+    <div class="barwrap"><div class="barfill" id="lightFill"></div></div>
+    <div id="woodCount">Wood <b id="woodN">0</b></div>
+  </div>
+  <div id="msgLog"></div>
+  <div id="interactTip"></div>
+  <div id="hint">WASD move · SHIFT run · SPACE jump · E gather / interact · F plant torch · [ ] time speed</div>
+  <div id="crosshair"></div>
+</div>
+
+<div id="vignette"></div>
+<div id="redPulse"></div>
+
+<div class="overlay" id="intro">
+  <h1>NIGHTFALL</h1>
+  <h2>The world of Kalgash · after Asimov</h2>
+  <div class="lore">For two thousand and forty-nine years, six suns have wheeled over Kalgash, and no living soul has ever seen darkness. Tonight, the suns will set — one by one — until only red Dovim remains. And then the unseen moon will swallow even Dovim, and the Stars will come out.</div>
+  <div class="lore">They say the Stars burn the mind of anyone who beholds them unprotected. They say every civilization before ours burned itself down, clawing for light. Gather wood while the suns still shine. Plant torches. Reach the Observatory. Keep a flame between yourself and the sky.</div>
+  <div class="controls">WASD — MOVE &nbsp;·&nbsp; MOUSE — LOOK &nbsp;·&nbsp; SHIFT — RUN &nbsp;·&nbsp; SPACE — JUMP<br>E — GATHER WOOD / WARM YOURSELF AT FIRES &nbsp;·&nbsp; F — PLANT A TORCH (1 WOOD)</div>
+  <button id="beginBtn">Enter the Long Day</button>
+  <div id="loadnote">forging continents…</div>
+</div>
+
+<div class="overlay hidden" id="madness">
+  <h1>THE STARS</h1>
+  <h2>your mind has gone with the light</h2>
+  <div class="lore">You looked too long into the thirty thousand suns, and something in you went out like a candle. Somewhere behind you, a city is burning — its people setting fire to everything they love, just to see.</div>
+  <div class="stat" id="madStats"></div>
+  <button id="madBtn">Wake at the Observatory</button>
+</div>
+
+<div class="overlay hidden" id="dawnOverlay">
+  <h1>DAWN</h1>
+  <h2>you kept the flame</h2>
+  <div class="lore">Onos breaks the horizon and the Stars dissolve like salt in water. You are among the few on all of Kalgash who watched the naked sky and did not burn. The cycle begins again — 2,049 years until the next darkness. Or you may simply walk, and remember.</div>
+  <div class="stat" id="dawnStats"></div>
+  <button id="dawnBtn">Walk in the Morning Light</button>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =========================================================================
+   NIGHTFALL — a procedural world inspired by Asimov's novelette
+   Single-file three.js. Six suns, one hidden moon, thirty thousand stars.
+   ========================================================================= */
+
+const CFG = {
+  cycleSeconds: 150,          // one full cycle: long day -> dusk -> eclipse -> dawn (~2.5 min)
+  chunkSize: 96, chunkSegs: 44, chunkRadius: 4,
+  seaLevel: 0,
+  gravity: 30, walkSpeed: 8.2, runSpeed: 13.5, jumpVel: 9.4, eyeHeight: 1.72,
+  maxPointLights: 9,
+  startFrac: 0.04,            // begin shortly after full six-sun noon
+};
+
+/* ---------------------------------------------------------------
+   Seeded RNG + Simplex noise (Gustavson port, compact)
+---------------------------------------------------------------- */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const WORLD_SEED = 20490;
+const seededRand = mulberry32(WORLD_SEED);
+
+const SimplexNoise = (function(){
+  const grad3=[[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
+  const p=new Uint8Array(256); for(let i=0;i<256;i++)p[i]=i;
+  for(let i=255;i>0;i--){ const n=Math.floor(seededRand()*(i+1)); const q=p[i];p[i]=p[n];p[n]=q; }
+  const perm=new Uint8Array(512), permMod12=new Uint8Array(512);
+  for(let i=0;i<512;i++){ perm[i]=p[i&255]; permMod12[i]=perm[i]%12; }
+  const F2=0.5*(Math.sqrt(3)-1), G2=(3-Math.sqrt(3))/6;
+  return function(xin,yin){
+    let n0=0,n1=0,n2=0;
+    const s=(xin+yin)*F2, i=Math.floor(xin+s), j=Math.floor(yin+s);
+    const t=(i+j)*G2, X0=i-t, Y0=j-t, x0=xin-X0, y0=yin-Y0;
+    let i1,j1; if(x0>y0){i1=1;j1=0;}else{i1=0;j1=1;}
+    const x1=x0-i1+G2, y1=y0-j1+G2, x2=x0-1+2*G2, y2=y0-1+2*G2;
+    const ii=i&255, jj=j&255;
+    let t0=0.5-x0*x0-y0*y0;
+    if(t0>=0){ t0*=t0; const g=grad3[permMod12[ii+perm[jj]]]; n0=t0*t0*(g[0]*x0+g[1]*y0); }
+    let t1=0.5-x1*x1-y1*y1;
+    if(t1>=0){ t1*=t1; const g=grad3[permMod12[ii+i1+perm[jj+j1]]]; n1=t1*t1*(g[0]*x1+g[1]*y1); }
+    let t2=0.5-x2*x2-y2*y2;
+    if(t2>=0){ t2*=t2; const g=grad3[permMod12[ii+1+perm[jj+1]]]; n2=t2*t2*(g[0]*x2+g[1]*y2); }
+    return 70*(n0+n1+n2);
+  };
+})();
+const noise2 = SimplexNoise;
+
+function fbm(x,y,oct,lac=2.02,gain=0.5){
+  let a=0.5,f=1,s=0,norm=0;
+  for(let i=0;i<oct;i++){ s+=a*noise2(x*f,y*f); norm+=a; a*=gain; f*=lac; }
+  return s/norm;
+}
+function ridged(x,y,oct){
+  let a=0.5,f=1,s=0,norm=0;
+  for(let i=0;i<oct;i++){ s+=a*(1-Math.abs(noise2(x*f,y*f))); norm+=a; a*=0.5; f*=2.1; }
+  return s/norm; // 0..1
+}
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smoothstep=(a,b,x)=>{ const t=clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); };
+
+/* ---------------------------------------------------------------
+   TERRAIN — earth-inspired hypsometry:
+   bimodal elevation (abyssal basins + continental platforms),
+   domain-warped coastlines, ridged orogenic belts, fluvial detail.
+---------------------------------------------------------------- */
+function rawHeight(x,z){
+  // domain warp for natural coastlines
+  const wx = x + 55*noise2(x*0.0009+5.2, z*0.0009+1.3);
+  const wz = z + 55*noise2(x*0.0009-3.1, z*0.0009+7.7);
+  let c = fbm(wx*0.00145, wz*0.00145, 4)*0.5+0.5;        // continentality 0..1
+  const land = smoothstep(0.40,0.56,c);                  // shelf transition
+  const base = -36 + land*44;                            // basins -36, platform +8
+  const belts = smoothstep(0.50,0.78,c);                 // orogeny only deep inland
+  let m = ridged(wx*0.0042+9.0, wz*0.0042-4.0, 4);
+  m = Math.pow(m,2.4);
+  const mountains = m*72*belts;
+  const hills = fbm(wx*0.011, wz*0.011, 4)*8*(0.25+land);
+  const detail = fbm(wx*0.065, wz*0.065, 2)*1.3;
+  // ocean trench accent
+  const trench = (1-land)*smoothstep(0.30,0.18,c)*-14;
+  return base+mountains+hills+detail+trench;
+}
+// Observatory site: flatten a hilltop
+let OBS = new THREE.Vector3(0,0,0);
+(function findObservatorySite(){
+  let best=null,bestScore=1e9;
+  for(let a=0;a<360;a+=12) for(let r=120;r<=300;r+=30){
+    const x=Math.cos(a*Math.PI/180)*r, z=Math.sin(a*Math.PI/180)*r;
+    const h=rawHeight(x,z);
+    if(h>9&&h<26){ const score=r+Math.abs(h-15)*6; if(score<bestScore){bestScore=score;best={x,z,h};} }
+  }
+  if(!best) best={x:170,z:-170,h:Math.max(10,rawHeight(170,-170))};
+  OBS.set(best.x,best.h,best.z);
+})();
+function getHeight(x,z){
+  let h=rawHeight(x,z);
+  const d=Math.hypot(x-OBS.x,z-OBS.z);
+  if(d<70){ const k=smoothstep(70,16,d); h=lerp(h,OBS.y,k); }
+  return h;
+}
+function terrainNormal(x,z){
+  const e=0.85;
+  const hl=getHeight(x-e,z), hr=getHeight(x+e,z), hd=getHeight(x,z-e), hu=getHeight(x,z+e);
+  return new THREE.Vector3(hl-hr,2*e,hd-hu).normalize();
+}
+
+/* ---------------------------------------------------------------
+   RENDERER / SCENE
+---------------------------------------------------------------- */
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.0;
+document.getElementById('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0xb8c4d8, 0.0042);
+const camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.1, 2400);
+
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+/* ---------------------------------------------------------------
+   CHUNKED TERRAIN MESHES with hypsometric vertex colours
+---------------------------------------------------------------- */
+const terrainMat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.94, metalness:0.0 });
+const chunks = new Map();      // "cx,cz" -> {mesh, trees:[], group}
+const chunkQueue = [];
+
+const C_DEEP   = new THREE.Color(0x101c2e);
+const C_SHELF  = new THREE.Color(0x2a4a52);
+const C_SAND   = new THREE.Color(0xc2ad7e);
+const C_GRASS1 = new THREE.Color(0x5a7a3a);
+const C_GRASS2 = new THREE.Color(0x8a9148);
+const C_FOREST = new THREE.Color(0x3d5c30);
+const C_ROCK   = new THREE.Color(0x6e6258);
+const C_ROCK2  = new THREE.Color(0x86796a);
+const C_SNOW   = new THREE.Color(0xe8ecf2);
+const _c = new THREE.Color();
+
+function vertexColor(h, slope, x, z){
+  const moist = fbm(x*0.006+31.7, z*0.006-17.2, 3)*0.5+0.5;
+  const jitter = noise2(x*0.21,z*0.21)*0.04;
+  if(h < -10){ _c.copy(C_DEEP).lerp(C_SHELF, smoothstep(-30,-10,h)); }
+  else if(h < 0.55){ _c.copy(C_SHELF).lerp(C_SAND, smoothstep(-10,0.4,h)); }
+  else if(h < 2.2){ _c.copy(C_SAND); }
+  else {
+    _c.copy(C_GRASS1).lerp(C_GRASS2, moist<0.5?(0.5-moist)*2:0);
+    if(moist>0.55) _c.lerp(C_FOREST, smoothstep(0.55,0.8,moist));
+    const rockAmt = smoothstep(0.55,0.82,slope) + smoothstep(26,42,h)*0.8;
+    if(rockAmt>0){ _c.lerp(noise2(x*0.05,z*0.05)>0?C_ROCK:C_ROCK2, clamp(rockAmt,0,1)); }
+    const snowAmt = smoothstep(36,46,h - slope*10 + noise2(x*0.05,z*0.05)*4);
+    if(snowAmt>0) _c.lerp(C_SNOW, snowAmt);
+  }
+  _c.offsetHSL(0,0,jitter);
+  return _c;
+}
+
+/* --- vegetation prototypes (instanced per chunk) --- */
+const trunkGeo = new THREE.CylinderGeometry(0.16,0.30,2.6,6);
+trunkGeo.translate(0,1.3,0);
+const trunkMat = new THREE.MeshStandardMaterial({ color:0x5a4430, roughness:0.95 });
+const canopyGeo = new THREE.ConeGeometry(1.55,3.4,7);
+canopyGeo.translate(0,3.6,0);
+const canopy2Geo = new THREE.ConeGeometry(1.1,2.4,7);
+canopy2Geo.translate(0,5.2,0);
+const canopyMat = new THREE.MeshStandardMaterial({ color:0x2f4d26, roughness:0.92 });
+const canopyMat2 = new THREE.MeshStandardMaterial({ color:0x3a5c2c, roughness:0.92 });
+const rockGeo = new THREE.DodecahedronGeometry(0.9,0);
+const rockMat = new THREE.MeshStandardMaterial({ color:0x7a7065, roughness:0.97 });
+const shrubGeo = new THREE.IcosahedronGeometry(0.55,0);
+shrubGeo.translate(0,0.4,0);
+const shrubMat = new THREE.MeshStandardMaterial({ color:0x4c6431, roughness:0.95 });
+
+function hash2(a,b){ let h=(a*374761393+b*668265263)^WORLD_SEED; h=(h^(h>>13))*1274126177; return ((h^(h>>16))>>>0)/4294967296; }
+
+function buildChunk(cx,cz){
+  const size=CFG.chunkSize, segs=CFG.chunkSegs;
+  const ox=cx*size, oz=cz*size;
+  const geo=new THREE.PlaneGeometry(size,size,segs,segs);
+  geo.rotateX(-Math.PI/2);
+  const pos=geo.attributes.position;
+  const colors=new Float32Array(pos.count*3);
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i)+ox, z=pos.getZ(i)+oz;
+    const h=getHeight(x,z);
+    pos.setY(i,h);
+    const n=terrainNormal(x,z);
+    const col=vertexColor(h,1-n.y,x,z);
+    colors[i*3]=col.r; colors[i*3+1]=col.g; colors[i*3+2]=col.b;
+  }
+  geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  geo.computeVertexNormals();
+  const mesh=new THREE.Mesh(geo,terrainMat);
+  mesh.position.set(ox,0,oz);
+  mesh.receiveShadow=true; mesh.castShadow=false;
+  const group=new THREE.Group();
+  group.add(mesh);
+
+  // --- scatter vegetation deterministically ---
+  const rng=mulberry32((cx*92837111)^(cz*689287499)^WORLD_SEED);
+  const treeXf=[], rockXf=[], shrubXf=[], treeData=[];
+  const _m=new THREE.Matrix4(), _q=new THREE.Quaternion(), _s=new THREE.Vector3(), _p=new THREE.Vector3();
+  const obsD2 = (x,z)=>Math.hypot(x-OBS.x,z-OBS.z);
+  for(let i=0;i<150;i++){
+    const x=ox+(rng()-0.5)*size, z=oz+(rng()-0.5)*size;
+    const h=getHeight(x,z); if(h<1.8||h>32) continue;
+    const n=terrainNormal(x,z); if(n.y<0.82) continue;
+    const moist=fbm(x*0.006+31.7,z*0.006-17.2,3)*0.5+0.5;
+    if(obsD2(x,z)<26) continue;
+    const roll=rng();
+    if(roll < moist*0.62){
+      const sc=0.75+rng()*0.85;
+      _p.set(x,h-0.15,z); _q.setFromAxisAngle(new THREE.Vector3(0,1,0),rng()*6.28); _s.set(sc,sc*(0.9+rng()*0.3),sc);
+      _m.compose(_p,_q,_s);
+      treeXf.push(_m.clone());
+      treeData.push({x,z,y:h,wood:3,idx:treeXf.length-1,scale:sc});
+    } else if(roll<moist*0.62+0.10 && (1-n.y)>0.12){
+      const sc=0.5+rng()*1.5;
+      _p.set(x,h+0.1,z); _q.setFromEuler(new THREE.Euler(rng()*0.6,rng()*6.28,rng()*0.6)); _s.set(sc,sc*(0.6+rng()*0.8),sc);
+      _m.compose(_p,_q,_s); rockXf.push(_m.clone());
+    } else if(roll<moist*0.62+0.22 && h<24){
+      const sc=0.5+rng()*0.8;
+      _p.set(x,h-0.05,z); _q.setFromAxisAngle(new THREE.Vector3(0,1,0),rng()*6.28); _s.set(sc,sc,sc);
+      _m.compose(_p,_q,_s); shrubXf.push(_m.clone());
+    }
+  }
+  function makeInst(geo,mat,xfs,shadow){
+    if(!xfs.length) return null;
+    const im=new THREE.InstancedMesh(geo,mat,xfs.length);
+    for(let i=0;i<xfs.length;i++) im.setMatrixAt(i,xfs[i]);
+    im.castShadow=shadow; im.receiveShadow=true; im.instanceMatrix.needsUpdate=true;
+    group.add(im); return im;
+  }
+  const trunkIM = makeInst(trunkGeo,trunkMat,treeXf,true);
+  const canopyIM = makeInst(canopyGeo,canopyMat,treeXf,true);
+  const canopy2IM = makeInst(canopy2Geo,canopyMat2,treeXf,false);
+  makeInst(rockGeo,rockMat,rockXf,true);
+  makeInst(shrubGeo,shrubMat,shrubXf,false);
+
+  scene.add(group);
+  return { group, trees:treeData, trunkIM, canopyIM, canopy2IM, cx, cz };
+}
+
+function updateChunks(px,pz){
+  const ccx=Math.round(px/CFG.chunkSize), ccz=Math.round(pz/CFG.chunkSize);
+  const R=CFG.chunkRadius;
+  for(let dz=-R;dz<=R;dz++) for(let dx=-R;dx<=R;dx++){
+    if(dx*dx+dz*dz>R*R+2) continue;
+    const key=(ccx+dx)+','+(ccz+dz);
+    if(!chunks.has(key)&&!chunkQueue.includes(key)) chunkQueue.push(key);
+  }
+  // sort queue by distance to player chunk
+  chunkQueue.sort((a,b)=>{
+    const [ax,az]=a.split(',').map(Number), [bx,bz]=b.split(',').map(Number);
+    return ((ax-ccx)**2+(az-ccz)**2)-((bx-ccx)**2+(bz-ccz)**2);
+  });
+  // build budget: 1 chunk/frame
+  if(chunkQueue.length){
+    const key=chunkQueue.shift();
+    if(!chunks.has(key)){ const [cx,cz]=key.split(',').map(Number); chunks.set(key,buildChunk(cx,cz)); }
+  }
+  // unload far chunks
+  for(const [key,ch] of chunks){
+    if((ch.cx-ccx)**2+(ch.cz-ccz)**2 > (R+2.5)**2){
+      ch.group.traverse(o=>{ if(o.geometry&&o.geometry!==trunkGeo&&o.geometry!==canopyGeo&&o.geometry!==canopy2Geo&&o.geometry!==rockGeo&&o.geometry!==shrubGeo) o.geometry.dispose(); });
+      scene.remove(ch.group); chunks.delete(key);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------
+   THE SIX SUNS of Kalgash
+   Scripted ephemeris over one cycle (fraction f in [0,1)):
+   they set one by one until red Dovim hangs alone — then the moon.
+---------------------------------------------------------------- */
+const SUNS = [
+  { name:'Onos',  color:new THREE.Color(1.0,0.86,0.62), size:46, lum:1.55, rise:0.915, set:0.300, maxEl:62, az0:0.45,  azArc:2.4 },
+  { name:'Trey',  color:new THREE.Color(0.95,0.95,1.0), size:18, lum:0.62, rise:0.955, set:0.420, maxEl:44, az0:1.55,  azArc:2.1 },
+  { name:'Patru', color:new THREE.Color(0.92,0.93,1.0), size:14, lum:0.50, rise:0.985, set:0.455, maxEl:38, az0:1.85,  azArc:2.1 },
+  { name:'Tano',  color:new THREE.Color(0.75,0.85,1.0), size:12, lum:0.42, rise:0.045, set:0.575, maxEl:33, az0:3.45,  azArc:1.9 },
+  { name:'Sitha', color:new THREE.Color(0.70,0.82,1.0), size:10, lum:0.36, rise:0.070, set:0.600, maxEl:30, az0:3.80,  azArc:1.9 },
+  { name:'Dovim', color:new THREE.Color(1.0,0.30,0.14), size:26, lum:0.34, rise:0.190, set:0.965, maxEl:27, az0:5.30,  azArc:1.6 },
+];
+const ECLIPSE = { start:0.685, end:0.925, totA:0.755, totB:0.875 }; // moon vs Dovim
+
+function sunPhase(sun,f){ // fraction of this sun's arc, 0..1, or -1 if below horizon
+  let r=sun.rise, s=sun.set;
+  let span = s-r; if(span<0) span+=1;
+  let d = f-r; if(d<0) d+=1;
+  if(d>span) return -1;
+  return d/span;
+}
+function eclipseCover(f){
+  if(f<ECLIPSE.start||f>ECLIPSE.end) return 0;
+  const x=(f-ECLIPSE.start)/(ECLIPSE.end-ECLIPSE.start);
+  return smoothstep(0,0.30,x)*smoothstep(1,0.70,x)*1.0;
+}
+// world-space direction + effective intensity for each sun at cycle fraction f
+function sunState(sun,f){
+  const ph=sunPhase(sun,f);
+  if(ph<0) return { up:false, dir:new THREE.Vector3(0,-1,0), I:0, el:-0.2 };
+  const el = Math.sin(ph*Math.PI)*sun.maxEl*Math.PI/180;
+  const az = sun.az0 + (ph-0.5)*sun.azArc;
+  const dir = new THREE.Vector3(Math.cos(az)*Math.cos(el), Math.sin(el), Math.sin(az)*Math.cos(el));
+  let I = sun.lum * smoothstep(0,0.06,ph) * smoothstep(1,0.94,ph) * (0.35+0.65*Math.sin(ph*Math.PI));
+  if(sun.name==='Dovim'){ const cov=eclipseCover(f); I*=Math.max(0.0005,1-cov*0.9995); }
+  return { up:true, dir, I, el };
+}
+
+/* --- sun disc sprites (canvas glow textures) --- */
+function glowTexture(inner,outer,hard){
+  const cv=document.createElement('canvas'); cv.width=cv.height=128;
+  const g=cv.getContext('2d');
+  const gr=g.createRadialGradient(64,64,0,64,64,64);
+  gr.addColorStop(0,inner); gr.addColorStop(hard,inner); gr.addColorStop(1,outer);
+  g.fillStyle=gr; g.fillRect(0,0,128,128);
+  const tx=new THREE.CanvasTexture(cv); return tx;
+}
+const skyDist=1300;
+const sunSprites=SUNS.map(s=>{
+  const core=new THREE.Sprite(new THREE.SpriteMaterial({
+    map:glowTexture('rgba(255,255,255,1)','rgba(255,255,255,0)',0.22),
+    color:s.color, transparent:true, depthWrite:false, fog:false, blending:THREE.AdditiveBlending }));
+  core.scale.setScalar(s.size*2.6);
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({
+    map:glowTexture('rgba(255,255,255,0.55)','rgba(255,255,255,0)',0.02),
+    color:s.color, transparent:true, depthWrite:false, fog:false, blending:THREE.AdditiveBlending, opacity:0.5 }));
+  halo.scale.setScalar(s.size*9);
+  scene.add(core,halo);
+  return {core,halo};
+});
+// the unseen moon — a black disc with faint red rim during eclipse
+const moonSprite=new THREE.Sprite(new THREE.SpriteMaterial({
+  map:glowTexture('rgba(2,1,3,1)','rgba(2,1,3,0)',0.78), color:0x060308,
+  transparent:true, depthWrite:false, fog:false, opacity:0 }));
+moonSprite.scale.setScalar(SUNS[5].size*3.4);
+scene.add(moonSprite);
+
+/* ---------------------------------------------------------------
+   SKY DOME shader + 30,000 STARS
+---------------------------------------------------------------- */
+const skyUniforms={
+  zenith:{value:new THREE.Color(0x3a6ab8)}, horizon:{value:new THREE.Color(0xc8d4e2)},
+  ground:{value:new THREE.Color(0x202830)},
+  glowDir:{value:new THREE.Vector3(0,1,0)}, glowColor:{value:new THREE.Color(0xffc080)},
+  glowAmt:{value:0.0},
+};
+const skyMat=new THREE.ShaderMaterial({
+  side:THREE.BackSide, depthWrite:false, fog:false,
+  uniforms:skyUniforms,
+  vertexShader:`varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`
+    varying vec3 vDir;
+    uniform vec3 zenith,horizon,ground,glowDir,glowColor; uniform float glowAmt;
+    void main(){
+      float h=vDir.y;
+      vec3 col = h>0.0 ? mix(horizon,zenith,pow(clamp(h,0.0,1.0),0.62))
+                       : mix(horizon,ground,clamp(-h*4.0,0.0,1.0));
+      float g = pow(max(dot(normalize(vDir),normalize(glowDir)),0.0),5.0);
+      col += glowColor*g*glowAmt;
+      gl_FragColor=vec4(col,1.0);
+    }`
+});
+const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(1600,32,20),skyMat);
+scene.add(skyMesh);
+
+// star field: 30,000 points, denser along a "galactic" great circle
+const starGeo=new THREE.BufferGeometry();
+{
+  const N=30000, pos=new Float32Array(N*3), col=new Float32Array(N*3), siz=new Float32Array(N);
+  const rng=mulberry32(777);
+  const bandAxis=new THREE.Vector3(0.4,0.75,0.53).normalize();
+  let i=0;
+  while(i<N){
+    const v=new THREE.Vector3(rng()*2-1,rng()*2-1,rng()*2-1);
+    if(v.lengthSq()>1||v.lengthSq()<0.01) continue;
+    v.normalize();
+    const bandDist=Math.abs(v.dot(bandAxis));
+    // keep more stars near band plane (milky-way analogue)
+    if(bandDist>0.18 && rng()>0.30) continue;
+    pos[i*3]=v.x*1500; pos[i*3+1]=v.y*1500; pos[i*3+2]=v.z*1500;
+    const t=rng();
+    let r,g,b;
+    if(t<0.12){ r=1.0;g=0.72;b=0.55; } else if(t<0.30){ r=1.0;g=0.92;b=0.75; }
+    else if(t<0.75){ r=0.95;g=0.97;b=1.0; } else { r=0.72;g=0.82;b=1.0; }
+    const m=0.5+rng()*0.5;
+    col[i*3]=r*m; col[i*3+1]=g*m; col[i*3+2]=b*m;
+    siz[i]= rng()<0.012 ? 5.0+rng()*4.0 : 1.2+rng()*2.2;
+    i++;
+  }
+  starGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  starGeo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  starGeo.setAttribute('aSize',new THREE.BufferAttribute(siz,1));
+}
+const starUniforms={ opacity:{value:0} };
+const starMat=new THREE.ShaderMaterial({
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false,
+  uniforms:starUniforms,
+  vertexShader:`attribute float aSize; varying vec3 vCol; varying float vTw;
+    void main(){ vCol=color; vTw=fract(sin(dot(position.xy,vec2(12.9898,78.233)))*43758.5453);
+      vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=aSize; gl_Position=projectionMatrix*mv; }`,
+  fragmentShader:`varying vec3 vCol; varying float vTw; uniform float opacity;
+    void main(){ vec2 uv=gl_PointCoord-0.5; float d=length(uv);
+      float a=smoothstep(0.5,0.06,d)*opacity;
+      gl_FragColor=vec4(vCol*(0.75+0.25*vTw),a); }`,
+  vertexColors:true
+});
+const stars=new THREE.Points(starGeo,starMat);
+scene.add(stars);
+
+/* ---------------------------------------------------------------
+   LIGHT RIG — primary shadow sun + secondary fill + sky ambient
+---------------------------------------------------------------- */
+const sunLight=new THREE.DirectionalLight(0xffffff,1.2);
+sunLight.castShadow=true;
+sunLight.shadow.mapSize.set(2048,2048);
+sunLight.shadow.camera.near=20; sunLight.shadow.camera.far=460;
+sunLight.shadow.camera.left=-130; sunLight.shadow.camera.right=130;
+sunLight.shadow.camera.top=130; sunLight.shadow.camera.bottom=-130;
+sunLight.shadow.bias=-0.0006;
+scene.add(sunLight,sunLight.target);
+const fillLight=new THREE.DirectionalLight(0xffffff,0.4);
+scene.add(fillLight,fillLight.target);
+const hemiLight=new THREE.HemisphereLight(0x90a8c8,0x3a3228,0.55);
+scene.add(hemiLight);
+
+/* ---------------------------------------------------------------
+   WATER — fresnel + multi-sun specular shader plane
+---------------------------------------------------------------- */
+const waterUniforms={
+  time:{value:0},
+  sunDir:{value:new THREE.Vector3(0,1,0)}, sunCol:{value:new THREE.Color(1,1,1)}, sunI:{value:1},
+  skyCol:{value:new THREE.Color(0x6a88b0)}, deepCol:{value:new THREE.Color(0x0c1828)},
+  fogColor:{value:new THREE.Color(0xb8c4d8)}, fogDensity:{value:0.0042},
+};
+const waterMat=new THREE.ShaderMaterial({
+  transparent:true, uniforms:waterUniforms,
+  vertexShader:`
+    uniform float time; varying vec3 vWorld; varying vec3 vNrm;
+    void main(){
+      vec3 p=position;
+      vec4 w=modelMatrix*vec4(p,1.0);
+      float a1=sin(w.x*0.10+time*1.1)*0.5+sin(w.z*0.13+time*0.9)*0.5;
+      float a2=sin(w.x*0.31-time*1.7)*0.25+sin(w.z*0.27+time*1.4)*0.25;
+      w.y += (a1+a2)*0.18;
+      vNrm=normalize(vec3(-(cos(w.x*0.10+time*1.1)*0.05+cos(w.x*0.31-time*1.7)*0.077),1.0,
+                          -(cos(w.z*0.13+time*0.9)*0.065+cos(w.z*0.27+time*1.4)*0.067)));
+      vWorld=w.xyz;
+      gl_Position=projectionMatrix*viewMatrix*w;
+    }`,
+  fragmentShader:`
+    uniform vec3 sunDir,sunCol,skyCol,deepCol,fogColor; uniform float sunI,fogDensity;
+    varying vec3 vWorld; varying vec3 vNrm;
+    void main(){
+      vec3 V=normalize(cameraPosition-vWorld);
+      vec3 N=normalize(vNrm);
+      float fr=pow(1.0-max(dot(V,N),0.0),3.0)*0.85+0.08;
+      vec3 col=mix(deepCol,skyCol,fr);
+      vec3 H=normalize(V+normalize(sunDir));
+      float spec=pow(max(dot(N,H),0.0),220.0)*sunI*3.0;
+      col+=sunCol*spec;
+      float dist=length(cameraPosition-vWorld);
+      float f=1.0-exp(-fogDensity*fogDensity*dist*dist);
+      col=mix(col,fogColor,clamp(f,0.0,1.0));
+      gl_FragColor=vec4(col,0.86);
+    }`
+});
+const water=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600,64,64).rotateX(-Math.PI/2),waterMat);
+water.position.y=CFG.seaLevel-0.25;
+scene.add(water);
+
+/* ---------------------------------------------------------------
+   THE OBSERVATORY — stone refuge with an eternal flame
+---------------------------------------------------------------- */
+const fireGroups=[]; // {pos, light?, sprites:[], strength, baseScale}
+const flameTex=glowTexture('rgba(255,210,120,1)','rgba(255,80,10,0)',0.12);
+
+function makeFlame(scale){
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({ map:flameTex, color:0xffb050, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }));
+  sp.scale.set(scale,scale*1.5,scale);
+  return sp;
+}
+const lightPool=[];
+for(let i=0;i<CFG.maxPointLights;i++){
+  const pl=new THREE.PointLight(0xff9a40,0,26,2);
+  scene.add(pl); lightPool.push(pl);
+}
+
+(function buildObservatory(){
+  const g=new THREE.Group();
+  const stone=new THREE.MeshStandardMaterial({ color:0x8d8478, roughness:0.9 });
+  const stoneDark=new THREE.MeshStandardMaterial({ color:0x6b6258, roughness:0.92 });
+  const bronze=new THREE.MeshStandardMaterial({ color:0x8a6a3a, roughness:0.5, metalness:0.6 });
+  // plinth
+  const plinth=new THREE.Mesh(new THREE.CylinderGeometry(13,15,2.2,24),stoneDark);
+  plinth.position.y=1.0; plinth.castShadow=plinth.receiveShadow=true; g.add(plinth);
+  // tower
+  const tower=new THREE.Mesh(new THREE.CylinderGeometry(7.5,8.5,12,20,1,false),stone);
+  tower.position.y=8; tower.castShadow=tower.receiveShadow=true; g.add(tower);
+  // dome
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(7.8,24,14,0,Math.PI*2,0,Math.PI/2),bronze);
+  dome.position.y=14; dome.castShadow=true; g.add(dome);
+  // slit
+  const slit=new THREE.Mesh(new THREE.BoxGeometry(1.6,7,1.2),stoneDark);
+  slit.position.set(0,16.5,0); g.add(slit);
+  // door arch (just a dark inset)
+  const door=new THREE.Mesh(new THREE.BoxGeometry(3,4.6,1.2),new THREE.MeshStandardMaterial({color:0x14100c,roughness:1}));
+  door.position.set(0,4.3,8.2); g.add(door);
+  // ring of standing stones
+  for(let i=0;i<8;i++){
+    const a=i/8*Math.PI*2;
+    const s=new THREE.Mesh(new THREE.BoxGeometry(1.4,4.2+Math.sin(i*3.7)*0.8,1.0),stoneDark);
+    s.position.set(Math.cos(a)*19,2.0,Math.sin(a)*19);
+    s.rotation.y=a; s.castShadow=s.receiveShadow=true; g.add(s);
+  }
+  // eternal flame brazier
+  const brazier=new THREE.Mesh(new THREE.CylinderGeometry(1.5,0.9,1.6,10),bronze);
+  brazier.position.set(0,2.9,12.5); brazier.castShadow=true; g.add(brazier);
+  const fl=makeFlame(5.5); fl.position.set(0,4.6,12.5); g.add(fl);
+  const fl2=makeFlame(2.6); fl2.position.set(0,4.0,12.5); g.add(fl2);
+  g.position.set(OBS.x,OBS.y,OBS.z);
+  scene.add(g);
+  fireGroups.push({ pos:new THREE.Vector3(OBS.x,OBS.y+4.0,OBS.z+12.5), sprites:[fl,fl2], strength:3.2, radius:30, eternal:true });
+})();
+
+/* ---------------------------------------------------------------
+   TORCHES the player plants
+---------------------------------------------------------------- */
+const torchStickGeo=new THREE.CylinderGeometry(0.07,0.10,1.5,6);
+const torchHeadGeo=new THREE.SphereGeometry(0.14,8,6);
+const torchStickMat=new THREE.MeshStandardMaterial({color:0x4a3826,roughness:0.95});
+const torchHeadMat=new THREE.MeshStandardMaterial({color:0xff8830,emissive:0xff6a10,emissiveIntensity:2.2,roughness:0.6});
+
+function plantTorch(x,z){
+  const y=getHeight(x,z);
+  const grp=new THREE.Group();
+  const stick=new THREE.Mesh(torchStickGeo,torchStickMat);
+  stick.position.y=0.75; stick.castShadow=true; grp.add(stick);
+  const head=new THREE.Mesh(torchHeadGeo,torchHeadMat);
+  head.position.y=1.55; grp.add(head);
+  const fl=makeFlame(1.6); fl.position.y=1.95; grp.add(fl);
+  grp.position.set(x,y,z);
+  grp.rotation.y=Math.random()*6.28;
+  grp.rotation.z=(Math.random()-0.5)*0.12;
+  scene.add(grp);
+  fireGroups.push({ pos:new THREE.Vector3(x,y+1.8,z), sprites:[fl], strength:1.0, radius:16 });
+}
+
+// assign pooled point lights to nearest fires each frame; flicker
+const _fv=new THREE.Vector3();
+function updateFires(t,playerPos){
+  const sorted=fireGroups.map(f=>({f,d:f.pos.distanceToSquared(playerPos)})).sort((a,b)=>a.d-b.d);
+  for(let i=0;i<lightPool.length;i++){
+    const pl=lightPool[i];
+    if(i<sorted.length && sorted[i].d<160*160){
+      const f=sorted[i].f;
+      const flick=0.82+0.18*Math.sin(t*11+f.pos.x*7.3)+0.10*Math.sin(t*23+f.pos.z*3.1);
+      pl.position.copy(f.pos);
+      pl.intensity=18*f.strength*flick;
+      pl.distance=f.radius*(f.eternal?1.6:1.0);
+      pl.color.setHSL(0.066+0.012*Math.sin(t*5+f.pos.x),0.95,0.55);
+      f._flick=flick;
+    } else pl.intensity=0;
+  }
+  for(const f of fireGroups){
+    const fl=f._flick||0.9;
+    for(let k=0;k<f.sprites.length;k++){
+      const s=f.sprites[k], base=(k===0?1:0.5)*(f.strength>2?5.5:f.strength>0.5?1.6:1.0);
+      s.scale.set(base*fl,base*1.5*(0.9+0.2*Math.sin(t*13+f.pos.x*2)),base);
+      s.material.opacity=0.85+0.15*Math.sin(t*17+f.pos.z);
+    }
+  }
+}
+// light level the player stands in (suns + fires) — drives sanity
+function lightAt(pos,f){
+  let L=0;
+  for(const s of SUNS){ const st=sunState(s,f); if(st.up) L+=st.I*1.1; }
+  for(const fg of fireGroups){
+    const d=fg.pos.distanceTo(pos);
+    const r=fg.radius*(fg.eternal?1.7:1.15);
+    if(d<r) L+=fg.strength*0.85*(1-d/r);
+  }
+  return L;
+}
+
+/* ---------------------------------------------------------------
+   ATMOSPHERE — per-frame sky, fog, light rig, eclipse choreography
+---------------------------------------------------------------- */
+const PAL={
+  day:  { z:new THREE.Color(0x2e62b4), h:new THREE.Color(0xbcd0e4), f:new THREE.Color(0xb4c6da) },
+  dusk: { z:new THREE.Color(0x2c2450), h:new THREE.Color(0xff9450), f:new THREE.Color(0xc88a64) },
+  dovim:{ z:new THREE.Color(0x150812), h:new THREE.Color(0x611812), f:new THREE.Color(0x38100e) },
+  night:{ z:new THREE.Color(0x030208), h:new THREE.Color(0x07060e), f:new THREE.Color(0x050409) },
+};
+const _z=new THREE.Color(), _h=new THREE.Color(), _f2=new THREE.Color();
+let starVis=0;
+
+function updateAtmosphere(f,playerPos,t){
+  const states=SUNS.map(s=>sunState(s,f));
+  let D=0; for(const st of states) D+=st.I;
+  // dominant + secondary suns
+  let di=-1,si=-1;
+  for(let i=0;i<states.length;i++){ if(states[i].I>(di<0?0:states[di].I)) {si=di; di=i;} else if(states[i].I>(si<0?0:states[si].I)) si=i; }
+
+  // palette blending: night -> dovim -> dusk -> full day
+  const dovimAmt = clamp(states[5].I/0.30,0,1)*(1-clamp((D-states[5].I)/0.3,0,1));
+  const duskAmt  = clamp((D-0.25)/0.55,0,1);
+  const dayAmt   = clamp((D-0.9)/1.1,0,1);
+  _z.copy(PAL.night.z); _h.copy(PAL.night.h); _f2.copy(PAL.night.f);
+  _z.lerp(PAL.dovim.z,dovimAmt); _h.lerp(PAL.dovim.h,dovimAmt); _f2.lerp(PAL.dovim.f,dovimAmt);
+  _z.lerp(PAL.dusk.z,duskAmt);   _h.lerp(PAL.dusk.h,duskAmt);   _f2.lerp(PAL.dusk.f,duskAmt);
+  _z.lerp(PAL.day.z,dayAmt);     _h.lerp(PAL.day.h,dayAmt);     _f2.lerp(PAL.day.f,dayAmt);
+  skyUniforms.zenith.value.copy(_z);
+  skyUniforms.horizon.value.copy(_h);
+  skyUniforms.ground.value.copy(_f2).multiplyScalar(0.5);
+  scene.fog.color.copy(_f2);
+  scene.fog.density = lerp(0.0026,0.0042,clamp(D/1.4,0,1));
+  waterUniforms.fogColor.value.copy(_f2);
+  waterUniforms.fogDensity.value=scene.fog.density;
+  waterUniforms.skyCol.value.copy(_h).lerp(_z,0.4);
+
+  // primary shadow-casting light
+  if(di>=0&&states[di].I>0.015){
+    const st=states[di];
+    sunLight.intensity=clamp(st.I*2.4,0,3.2);
+    sunLight.color.copy(SUNS[di].color);
+    sunLight.position.copy(playerPos).addScaledVector(st.dir,260);
+    sunLight.target.position.copy(playerPos);
+    sunLight.castShadow=st.I>0.05;
+    waterUniforms.sunDir.value.copy(st.dir);
+    waterUniforms.sunCol.value.copy(SUNS[di].color);
+    waterUniforms.sunI.value=st.I;
+    skyUniforms.glowDir.value.copy(st.dir);
+    skyUniforms.glowColor.value.copy(SUNS[di].color);
+    skyUniforms.glowAmt.value=clamp(st.I*1.5,0,1.2)*(1-clamp(st.el/0.9,0,0.75));
+  } else { sunLight.intensity=0; skyUniforms.glowAmt.value=0; waterUniforms.sunI.value=0; }
+  if(si>=0&&states[si].I>0.015){
+    fillLight.intensity=clamp(states[si].I*1.3,0,1.4);
+    fillLight.color.copy(SUNS[si].color);
+    fillLight.position.copy(playerPos).addScaledVector(states[si].dir,260);
+    fillLight.target.position.copy(playerPos);
+  } else fillLight.intensity=0;
+
+  hemiLight.intensity=0.07+clamp(D,0,2)*0.30;
+  hemiLight.color.copy(_z).lerp(_h,0.5);
+  hemiLight.groundColor.copy(_f2).multiplyScalar(0.6);
+
+  // stars + tone-mapped eye adaptation
+  starVis = clamp(1 - D*2.6, 0, 1);
+  const cov=eclipseCover(f);
+  starVis = Math.max(starVis, cov*smoothstep(0.05,0.0,D));
+  starUniforms.opacity.value = lerp(starUniforms.opacity.value, starVis, 0.04);
+  stars.rotation.y = t*0.004;
+  renderer.toneMappingExposure = lerp(renderer.toneMappingExposure, lerp(1.05,1.55,starVis), 0.02);
+
+  // sun sprites + moon silhouette
+  for(let i=0;i<SUNS.length;i++){
+    const st=states[i], sp=sunSprites[i];
+    if(st.up&&st.I>0.001){
+      sp.core.visible=sp.halo.visible=true;
+      sp.core.position.copy(playerPos).addScaledVector(st.dir,skyDist);
+      sp.halo.position.copy(sp.core.position);
+      const horizFade=smoothstep(-0.02,0.04,st.el);
+      sp.core.material.opacity=horizFade;
+      sp.halo.material.opacity=0.55*horizFade*clamp(st.I/SUNS[i].lum,0,1);
+    } else sp.core.visible=sp.halo.visible=false;
+  }
+  // moon crossing Dovim during the eclipse
+  if(f>ECLIPSE.start&&f<ECLIPSE.end&&states[5].up){
+    const x=(f-ECLIPSE.start)/(ECLIPSE.end-ECLIPSE.start);
+    const dir=states[5].dir.clone();
+    const side=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
+    const up2=new THREE.Vector3().crossVectors(side,dir).normalize();
+    const off=(x-0.5)*0.16;
+    dir.addScaledVector(side,off).addScaledVector(up2,off*0.18).normalize();
+    moonSprite.position.copy(playerPos).addScaledVector(dir,skyDist*0.985);
+    moonSprite.material.opacity=0.96*smoothstep(0,0.06,x)*smoothstep(1,0.94,x);
+    moonSprite.visible=true;
+  } else moonSprite.visible=false;
+
+  skyMesh.position.copy(playerPos);
+  stars.position.copy(playerPos);
+  water.position.x=playerPos.x; water.position.z=playerPos.z;
+  return { D, states };
+}
+
+/* ---------------------------------------------------------------
+   PLAYER — first-person physics over the heightfield
+---------------------------------------------------------------- */
+const player={ pos:new THREE.Vector3(), vel:new THREE.Vector3(), yaw:0, pitch:0, grounded:false, swimming:false, bob:0 };
+(function findSpawn(){
+  for(let r=45;r<120;r+=8) for(let a=0;a<360;a+=20){
+    const x=OBS.x+Math.cos(a*Math.PI/180)*r, z=OBS.z+Math.sin(a*Math.PI/180)*r;
+    if(getHeight(x,z)>2.5){ player.pos.set(x,getHeight(x,z)+CFG.eyeHeight,z);
+      player.yaw=Math.atan2(OBS.x-x,OBS.z-z)+Math.PI; return; }
+  }
+  player.pos.set(OBS.x,OBS.y+CFG.eyeHeight,OBS.z+30);
+})();
+
+const keys={};
+addEventListener('keydown',e=>{ keys[e.code]=true;
+  if(e.code==='BracketLeft') setTimeScale(timeScale*0.5);
+  if(e.code==='BracketRight') setTimeScale(timeScale*2);
+  if(e.code==='KeyE') tryInteract();
+  if(e.code==='KeyF') tryPlantTorch();
+});
+addEventListener('keyup',e=>{ keys[e.code]=false; });
+let pointerLocked=false;
+document.addEventListener('pointerlockchange',()=>{ pointerLocked=document.pointerLockElement===renderer.domElement; });
+renderer.domElement.addEventListener('click',()=>{ if(running&&!pointerLocked) renderer.domElement.requestPointerLock(); });
+addEventListener('mousemove',e=>{
+  if(!pointerLocked) return;
+  player.yaw -= e.movementX*0.0021;
+  player.pitch = clamp(player.pitch - e.movementY*0.0021, -1.45, 1.45);
+});
+
+function updatePlayer(dt){
+  const speed = keys['ShiftLeft']||keys['ShiftRight'] ? CFG.runSpeed : CFG.walkSpeed;
+  const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right=new THREE.Vector3(-fwd.z,0,fwd.x);
+  const wish=new THREE.Vector3();
+  if(keys['KeyW']) wish.add(fwd);
+  if(keys['KeyS']) wish.sub(fwd);
+  if(keys['KeyD']) wish.add(right);
+  if(keys['KeyA']) wish.sub(right);
+  if(wish.lengthSq()>0) wish.normalize();
+
+  const groundH=getHeight(player.pos.x,player.pos.z);
+  player.swimming = groundH < -1.5;
+
+  if(player.swimming){
+    const surf=-0.25+1.0;
+    player.pos.y=lerp(player.pos.y,surf,clamp(dt*4,0,1));
+    player.vel.y=0;
+    player.pos.addScaledVector(wish,speed*0.42*dt);
+    player.bob+=dt*2;
+  } else {
+    // slope resistance
+    const ahead=getHeight(player.pos.x+wish.x*1.2,player.pos.z+wish.z*1.2);
+    const slope=(ahead-groundH)/1.2;
+    const slopeFactor = slope>0 ? clamp(1-slope*0.45,0.25,1) : 1;
+    player.pos.addScaledVector(wish,speed*slopeFactor*dt);
+    player.vel.y-=CFG.gravity*dt;
+    player.pos.y+=player.vel.y*dt;
+    const gH=getHeight(player.pos.x,player.pos.z);
+    if(player.pos.y<=gH+CFG.eyeHeight){
+      player.pos.y=gH+CFG.eyeHeight; player.vel.y=0; player.grounded=true;
+    } else player.grounded=false;
+    if(keys['Space']&&player.grounded){ player.vel.y=CFG.jumpVel; player.grounded=false; }
+    if(wish.lengthSq()>0&&player.grounded) player.bob+=dt*(speed>10?11:7.5);
+  }
+  camera.position.copy(player.pos);
+  camera.position.y+=Math.sin(player.bob)*0.05;
+  camera.rotation.order='YXZ';
+  camera.rotation.set(player.pitch,player.yaw,madRoll);
+}
+
+/* ---------------------------------------------------------------
+   SANITY, INTERACTION, GAME STATE
+---------------------------------------------------------------- */
+let sanity=100, wood=2, running=false, dead=false, sawDawn=false, survivedTotality=false;
+let stats={ torches:0, woodGathered:0, cycles:0 };
+let timeScale=1, gameTime=CFG.startFrac*CFG.cycleSeconds;
+let madRoll=0;
+function setTimeScale(v){ timeScale=clamp(v,0.25,8); message('time flows at '+timeScale+'×',true); }
+
+const $=id=>document.getElementById(id);
+function message(text,quiet){
+  const log=$('msgLog');
+  const div=document.createElement('div'); div.className='msg'; div.textContent=text;
+  if(quiet) div.style.fontSize='13px';
+  log.appendChild(div);
+  while(log.children.length>3) log.removeChild(log.firstChild);
+}
+
+function nearestTree(){
+  let best=null,bestD=4.6;
+  const ccx=Math.round(player.pos.x/CFG.chunkSize), ccz=Math.round(player.pos.z/CFG.chunkSize);
+  for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){
+    const ch=chunks.get((ccx+dx)+','+(ccz+dz)); if(!ch) continue;
+    for(const tr of ch.trees){
+      if(tr.wood<=0) continue;
+      const d=Math.hypot(tr.x-player.pos.x,tr.z-player.pos.z);
+      if(d<bestD){ bestD=d; best={tr,ch}; }
+    }
+  }
+  return best;
+}
+function nearestFire(){
+  for(const fg of fireGroups){ if(fg.pos.distanceTo(player.pos)<fg.radius*0.55) return fg; }
+  return null;
+}
+const _tq=new THREE.Quaternion(), _tp=new THREE.Vector3(), _ts=new THREE.Vector3(), _tm=new THREE.Matrix4();
+function tryInteract(){
+  if(!running) return;
+  const hit=nearestTree();
+  if(hit){
+    hit.tr.wood--; wood++; stats.woodGathered++;
+    $('woodN').textContent=wood;
+    message(hit.tr.wood>0?'you gather an armful of branches':'the tree is stripped bare',true);
+    if(hit.tr.wood<=0){
+      _tp.set(hit.tr.x,hit.tr.y-0.15,hit.tr.z); _tq.identity();
+      _ts.set(hit.tr.scale*0.18,hit.tr.scale*0.06,hit.tr.scale*0.18);
+      _tm.compose(_tp,_tq,_ts);
+      hit.ch.canopyIM.setMatrixAt(hit.tr.idx,_tm);
+      hit.ch.canopy2IM.setMatrixAt(hit.tr.idx,_tm);
+      hit.ch.canopyIM.instanceMatrix.needsUpdate=true;
+      hit.ch.canopy2IM.instanceMatrix.needsUpdate=true;
+    }
+  }
+}
+function tryPlantTorch(){
+  if(!running) return;
+  if(wood<1){ message('no wood — find a tree while light remains',true); return; }
+  const fx=player.pos.x-Math.sin(player.yaw)*2.4, fz=player.pos.z-Math.cos(player.yaw)*2.4;
+  if(getHeight(fx,fz)<0.2){ message('the torch would drown here',true); return; }
+  wood--; stats.torches++;
+  $('woodN').textContent=wood;
+  plantTorch(fx,fz);
+  message('a small fire against the coming dark',true);
+}
+
+/* --- scripted lore events over the cycle --- */
+const EVENTS=[
+  { f:0.055, t:'The six suns stand witness. This light will not last.' },
+  { f:0.290, t:'Golden Onos touches the horizon. It will not rise again until the darkness has passed.' },
+  { f:0.430, t:'Trey and Patru slip away together, as they always have.' },
+  { f:0.585, t:'Tano and Sitha abandon the sky. Only red Dovim remains.' },
+  { f:0.615, t:'Dovim alone. The world has turned the colour of an old wound. Gather wood. Plant flame.' },
+  { f:0.690, t:'Something is eating Dovim.' },
+  { f:0.758, t:'THE STARS. Thirty thousand burning eyes. Do not stand in darkness.' },
+  { f:0.878, t:'Dovim crawls back from behind the moon. The worst is over — if you are still you.' },
+];
+let eventIdx=0,lastF=0;
+
+/* ---------------------------------------------------------------
+   HUD
+---------------------------------------------------------------- */
+const sunRow=$('sunRow');
+const sunDots=SUNS.map(s=>{
+  const d=document.createElement('div'); d.className='sundot';
+  d.style.color='#'+s.color.clone().multiplyScalar(1).getHexString();
+  d.style.background='#'+s.color.getHexString();
+  d.title=s.name; sunRow.appendChild(d); return d;
+});
+const phaseLabel=document.createElement('div'); phaseLabel.id='phaseLabel'; sunRow.appendChild(phaseLabel);
+
+function phaseName(f){
+  const cov=eclipseCover(f);
+  if(cov>0.96) return 'NIGHTFALL';
+  if(f>ECLIPSE.start&&f<ECLIPSE.end) return 'the eclipse of Dovim';
+  if(f>0.60&&f<ECLIPSE.start) return 'Dovim alone';
+  if(f>0.30&&f<=0.60) return 'the gathering dusk';
+  if(f>=ECLIPSE.end||f<0.055) return 'dawn';
+  return 'the long day';
+}
+function updateHUD(f,L){
+  const states=SUNS.map((s,i)=>sunState(s,f));
+  for(let i=0;i<6;i++){
+    const on=states[i].up&&states[i].I>0.004;
+    sunDots[i].classList.toggle('down',!on);
+  }
+  phaseLabel.textContent=phaseName(f);
+  $('sanityPct').textContent=Math.ceil(sanity);
+  $('sanityFill').style.width=sanity+'%';
+  $('sanityFill').style.backgroundColor = sanity>60?'#9fd49a':sanity>30?'#d4c47a':'#d4756a';
+  $('lightFill').style.width=clamp(L/1.6,0,1)*100+'%';
+  // compass to observatory
+  const dx=OBS.x-player.pos.x, dz=OBS.z-player.pos.z;
+  const ang=Math.atan2(dx,dz)-player.yaw+Math.PI;
+  $('obsArrow').style.transform='rotate('+(-ang*180/Math.PI)+'deg)';
+  $('obsDist').textContent=Math.round(Math.hypot(dx,dz))+'m';
+  // interact tip
+  const tip=$('interactTip');
+  const tree=nearestTree(), fire=nearestFire();
+  if(tree){ tip.style.display='block'; tip.textContent='E — gather wood ('+tree.tr.wood+' left)'; }
+  else if(fire&&fire.eternal){ tip.style.display='block'; tip.textContent='The eternal flame of the Observatory. You are safe in its light.'; }
+  else tip.style.display='none';
+  // vignette & madness FX
+  const dread=clamp((100-sanity)/100,0,1);
+  $('vignette').style.opacity=clamp(dread*0.9+starVis*0.25,0,0.96);
+  $('redPulse').style.opacity= sanity<35 ? (0.25+0.2*Math.sin(perfT*6))*(1-sanity/35+0.3) : 0;
+}
+
+/* ---------------------------------------------------------------
+   AUDIO — procedural wind, eclipse drone, heartbeat
+---------------------------------------------------------------- */
+let AC=null, windGain=null, droneGain=null, droneOsc2=null, musicBus=null, noiseBuf=null;
+function initAudio(){
+  if(AC) return;
+  AC=new (window.AudioContext||window.webkitAudioContext)();
+  // wind: looped noise -> bandpass -> gain
+  const len=AC.sampleRate*3, buf=AC.createBuffer(1,len,AC.sampleRate);
+  const d=buf.getChannelData(0); for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  noiseBuf=buf;
+  const src=AC.createBufferSource(); src.buffer=buf; src.loop=true;
+  const bp=AC.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=420; bp.Q.value=0.6;
+  windGain=AC.createGain(); windGain.gain.value=0.05;
+  src.connect(bp).connect(windGain).connect(AC.destination); src.start();
+  // drone: detuned low oscillators
+  const o1=AC.createOscillator(), o2=AC.createOscillator();
+  o1.type='sawtooth'; o2.type='sawtooth'; o1.frequency.value=48; o2.frequency.value=48.7;
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=160;
+  droneGain=AC.createGain(); droneGain.gain.value=0;
+  o1.connect(lp); o2.connect(lp); lp.connect(droneGain).connect(AC.destination);
+  o1.start(); o2.start(); droneOsc2=o2;
+  // music master bus with gentle compression
+  const comp=AC.createDynamicsCompressor();
+  comp.threshold.value=-18; comp.ratio.value=4;
+  musicBus=AC.createGain(); musicBus.gain.value=0.95;
+  musicBus.connect(comp).connect(AC.destination);
+}
+let nextBeat=0;
+function thump(strong){
+  if(!AC) return;
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(52,AC.currentTime);
+  o.frequency.exponentialRampToValueAtTime(30,AC.currentTime+0.12);
+  g.gain.setValueAtTime(strong?0.5:0.3,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+0.22);
+  o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime+0.25);
+}
+
+/* --- THE SCORE OF THE STARS — erupts at totality ------------------
+   D-minor pad with detuned saws, tremolo strings, timpani strikes
+   accelerating with intensity, dissonant minor-second stingers. */
+let pad=null, musicOn=false, musicStart=0, nextDrum=0, nextSting=0, nextRoll=0;
+function startPad(){
+  if(pad||!AC) return;
+  const t=AC.currentTime;
+  // low pad: D2 F2 A2 D3, each doubled & detuned
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=260; lp.Q.value=1.4;
+  const g=AC.createGain(); g.gain.setValueAtTime(0.0001,t);
+  g.gain.setTargetAtTime(0.15,t,3.0);
+  lp.connect(g).connect(musicBus);
+  const oscs=[];
+  for(const f0 of [73.42,87.31,110.0,146.83]) for(const det of [0.996,1.005]){
+    const o=AC.createOscillator(); o.type='sawtooth'; o.frequency.value=f0*det;
+    o.connect(lp); o.start(); oscs.push(o);
+  }
+  // slow cinematic filter sweep
+  const lfo=AC.createOscillator(); lfo.frequency.value=0.06;
+  const lfoG=AC.createGain(); lfoG.gain.value=170;
+  lfo.connect(lfoG).connect(lp.frequency); lfo.start(); oscs.push(lfo);
+  // high tremolo strings: D5 + A5, 6.5 Hz shiver
+  const tg=AC.createGain(); tg.gain.setValueAtTime(0.0001,t);
+  tg.gain.setTargetAtTime(0.05,t,5.0);
+  tg.connect(musicBus);
+  for(const f0 of [587.33,880.0]){
+    const o=AC.createOscillator(); o.type='triangle'; o.frequency.value=f0;
+    const og=AC.createGain(); og.gain.value=0.5;
+    o.connect(og).connect(tg); o.start(); oscs.push(o);
+  }
+  const trem=AC.createOscillator(); trem.frequency.value=6.5;
+  const tremG=AC.createGain(); tremG.gain.value=0.35;
+  trem.connect(tremG).connect(tg.gain); trem.start(); oscs.push(trem);
+  pad={oscs,gains:[g,tg],filter:lp,trem};
+}
+function stopPad(){
+  if(!pad) return;
+  const t=AC.currentTime;
+  for(const g of pad.gains) g.gain.setTargetAtTime(0.0001,t,2.2);
+  const old=pad; pad=null;
+  setTimeout(()=>{ for(const o of old.oscs){ try{o.stop();}catch(e){} } },9000);
+}
+function drum(intense){
+  if(!AC) return;
+  const t=AC.currentTime;
+  const o=AC.createOscillator(); o.type='sine';
+  o.frequency.setValueAtTime(intense?72:56,t);
+  o.frequency.exponentialRampToValueAtTime(33,t+0.42);
+  const g=AC.createGain();
+  g.gain.setValueAtTime(intense?0.6:0.42,t);
+  g.gain.exponentialRampToValueAtTime(0.001,t+(intense?1.1:0.8));
+  o.connect(g).connect(musicBus); o.start(t); o.stop(t+1.2);
+  const n=AC.createBufferSource(); n.buffer=noiseBuf;
+  const nf=AC.createBiquadFilter(); nf.type='lowpass'; nf.frequency.value=240;
+  const ng=AC.createGain(); ng.gain.setValueAtTime(intense?0.5:0.32,t);
+  ng.gain.exponentialRampToValueAtTime(0.001,t+0.32);
+  n.connect(nf).connect(ng).connect(musicBus); n.start(t); n.stop(t+0.4);
+}
+function drumRoll(){
+  if(!AC) return;
+  const t=AC.currentTime;
+  const n=AC.createBufferSource(); n.buffer=noiseBuf; n.loop=true;
+  const nf=AC.createBiquadFilter(); nf.type='lowpass'; nf.frequency.value=300;
+  const ng=AC.createGain(); ng.gain.setValueAtTime(0.0001,t);
+  ng.gain.exponentialRampToValueAtTime(0.30,t+2.2);
+  ng.gain.exponentialRampToValueAtTime(0.001,t+2.7);
+  n.connect(nf).connect(ng).connect(musicBus); n.start(t); n.stop(t+2.8);
+  setTimeout(()=>drum(true),2150);
+}
+function stinger(){
+  if(!AC) return;
+  const t=AC.currentTime;
+  const bp2=AC.createBiquadFilter(); bp2.type='bandpass'; bp2.frequency.value=620; bp2.Q.value=1.1;
+  const g=AC.createGain(); g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.11,t+1.5);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+3.6);
+  bp2.connect(g).connect(musicBus);
+  for(const f0 of [220.0,233.08,311.13]){ // A3 + Bb3 + Eb4 — a knife of dissonance
+    const o=AC.createOscillator(); o.type='sawtooth'; o.frequency.value=f0;
+    o.connect(bp2); o.start(t); o.stop(t+3.7);
+  }
+}
+function updateAudio(dt,L){
+  if(!AC) return;
+  const wind=0.035+starVis*0.03+0.02*Math.sin(perfT*0.37)+0.012*Math.sin(perfT*1.13);
+  windGain.gain.setTargetAtTime(wind,AC.currentTime,0.4);
+  droneGain.gain.setTargetAtTime(starVis*0.085,AC.currentTime,1.2);
+  if(droneOsc2) droneOsc2.frequency.setTargetAtTime(48.7+starVis*1.6,AC.currentTime,1);
+  // score triggers on the Stars
+  if(starVis>0.45&&!musicOn){
+    musicOn=true; musicStart=perfT;
+    drumRoll(); startPad();
+    nextDrum=perfT+3.2; nextSting=perfT+6; nextRoll=perfT+24;
+  }
+  if(starVis<0.15&&musicOn){ musicOn=false; stopPad(); }
+  if(musicOn){
+    const inten=clamp((perfT-musicStart)/15,0,1)*0.55+starVis*0.45;
+    if(perfT>nextDrum){
+      drum(Math.random()<inten*0.75);
+      if(Math.random()<0.4) setTimeout(()=>drum(false),230);
+      nextDrum=perfT+lerp(2.6,1.0,inten)*(0.8+Math.random()*0.45);
+    }
+    if(perfT>nextSting){ stinger(); nextSting=perfT+5.5+Math.random()*6; }
+    if(perfT>nextRoll){ drumRoll(); nextRoll=perfT+20+Math.random()*14; }
+    if(pad){
+      const dread=(100-sanity)/100;
+      pad.filter.frequency.setTargetAtTime(260+inten*820+dread*420,AC.currentTime,0.8);
+      pad.trem.frequency.setTargetAtTime(6.5+dread*4.5,AC.currentTime,0.8);
+    }
+  }
+  if(sanity<55){
+    const rate=lerp(1.4,0.32,1-sanity/55);
+    if(perfT>nextBeat){ thump(sanity<25); nextBeat=perfT+rate; setTimeout(()=>thump(false),140); }
+  }
+}
+
+/* ---------------------------------------------------------------
+   OVERLAYS / GAME FLOW
+---------------------------------------------------------------- */
+function show(id){ $(id).classList.remove('hidden'); }
+function hide(id){ $(id).classList.add('hidden'); }
+function die(){
+  dead=true; running=false;
+  document.exitPointerLock&&document.exitPointerLock();
+  $('madStats').textContent='torches planted: '+stats.torches+' · wood gathered: '+stats.woodGathered+' · darkness survived: '+stats.cycles;
+  show('madness');
+}
+$('madBtn').addEventListener('click',()=>{
+  hide('madness'); dead=false; sanity=62;
+  player.pos.set(OBS.x,OBS.y+CFG.eyeHeight,OBS.z+14); player.vel.set(0,0,0);
+  player.yaw=Math.PI; running=true;
+  renderer.domElement.requestPointerLock();
+});
+$('dawnBtn').addEventListener('click',()=>{
+  hide('dawnOverlay'); running=true;
+  renderer.domElement.requestPointerLock();
+});
+$('beginBtn').addEventListener('click',()=>{
+  // synchronously stamp out the spawn neighbourhood so there is ground underfoot
+  const ccx=Math.round(player.pos.x/CFG.chunkSize), ccz=Math.round(player.pos.z/CFG.chunkSize);
+  for(let dz=-2;dz<=2;dz++) for(let dx=-2;dx<=2;dx++){
+    const key=(ccx+dx)+','+(ccz+dz);
+    if(!chunks.has(key)) chunks.set(key,buildChunk(ccx+dx,ccz+dz));
+  }
+  hide('intro'); $('hud').classList.add('on');
+  initAudio(); running=true;
+  renderer.domElement.requestPointerLock();
+  message('The Long Day is ending. You have until Dovim falls.');
+});
+
+/* ---------------------------------------------------------------
+   MAIN LOOP
+---------------------------------------------------------------- */
+const clock=new THREE.Clock();
+let perfT=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  perfT+=dt;
+
+  if(running&&!dead){
+    gameTime+=dt*timeScale;
+    updatePlayer(dt);
+  }
+  const f=(gameTime/CFG.cycleSeconds)%1;
+
+  // lore events + dawn detection (cycle wrap)
+  if(running){
+    for(const ev of EVENTS){
+      if(lastF<ev.f&&f>=ev.f&&f-lastF<0.5) message(ev.t);
+    }
+    if(f>ECLIPSE.totB&&lastF<=ECLIPSE.totB&&sanity>0) survivedTotality=true;
+    if(lastF>0.9&&f<0.1){ // wrapped — dawn
+      if(survivedTotality){
+        stats.cycles++; survivedTotality=false;
+        running=false; document.exitPointerLock&&document.exitPointerLock();
+        $('dawnStats').textContent='torches planted: '+stats.torches+' · sanity remaining: '+Math.ceil(sanity)+'% · darknesses survived: '+stats.cycles;
+        show('dawnOverlay');
+      }
+    }
+    lastF=f;
+  }
+
+  updateChunks(player.pos.x,player.pos.z);
+  const atm=updateAtmosphere(f,player.pos,perfT);
+  updateFires(perfT,player.pos);
+
+  if(running&&!dead){
+    const L=lightAt(player.pos,f);
+    // sanity dynamics
+    if(L<0.35){
+      const exposure=(0.35-L)/0.35;
+      sanity-=dt*exposure*(1.3+starVis*3.4);
+    } else if(L>0.55){
+      sanity+=dt*(nearestFire()? 4.5 : 2.0);
+    }
+    sanity=clamp(sanity,0,100);
+    // madness camera roll
+    const dread=clamp((100-sanity)/100,0,1);
+    madRoll=Math.sin(perfT*1.7)*0.035*dread*dread + Math.sin(perfT*5.3)*0.012*dread;
+    camera.fov=lerp(camera.fov,72+dread*6*Math.sin(perfT*0.9),0.05);
+    camera.updateProjectionMatrix();
+    if(sanity<=0&&!dead) die();
+    updateHUD(f,L);
+    updateAudio(dt,L);
+  }
+  renderer.render(scene,camera);
+}
+// pre-build the spawn chunk so the intro backdrop has ground
+const ccx0=Math.round(player.pos.x/CFG.chunkSize), ccz0=Math.round(player.pos.z/CFG.chunkSize);
+chunks.set(ccx0+','+ccz0,buildChunk(ccx0,ccz0));
+camera.position.copy(player.pos);
+$('loadnote').textContent='the suns are waiting';
+animate();
+</script>
+</body>
+</html>
